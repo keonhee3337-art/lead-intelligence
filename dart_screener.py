@@ -3,7 +3,10 @@ import dart_fss as dart
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / '.env')
+for _p in [Path(__file__).parent / '.env', Path(__file__).parent.parent / '.env', Path(__file__).parent.parent.parent / '.env']:
+    if _p.exists():
+        load_dotenv(dotenv_path=_p)
+        break
 
 DART_API_KEY = os.getenv("DARTFSS_API_KEY")
 if not DART_API_KEY:
@@ -112,13 +115,12 @@ def screen_companies(
     sector: Korean sector name e.g. "제조업" (informational; DART search is by name)
     min/max_revenue: in billions KRW — filters on the most recent year available
     """
-    from dart_fss.utils import find_by_corp_name
-
+    corp_list = dart.get_corp_list()
     results = []
 
     for name in SAMPLE_COMPANIES:
         try:
-            corps = find_by_corp_name(name, exactly=True)
+            corps = corp_list.find_by_corp_name(name, exactly=True)
             if not corps:
                 print(f"  [skip] {name}: not found")
                 continue

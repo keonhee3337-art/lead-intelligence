@@ -16,7 +16,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / '.env')
+for _p in [Path(__file__).parent / '.env', Path(__file__).parent.parent / '.env', Path(__file__).parent.parent.parent / '.env']:
+    if _p.exists():
+        load_dotenv(dotenv_path=_p)
+        break
 
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 if not PERPLEXITY_API_KEY:

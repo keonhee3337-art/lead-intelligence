@@ -20,7 +20,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 import anthropic
 
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / '.env')
+for _p in [Path(__file__).parent / '.env', Path(__file__).parent.parent / '.env', Path(__file__).parent.parent.parent / '.env']:
+    if _p.exists():
+        load_dotenv(dotenv_path=_p)
+        break
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
