@@ -1,4 +1,5 @@
 import os
+import functools
 import dart_fss as dart
 from pathlib import Path
 from dotenv import load_dotenv
@@ -13,6 +14,13 @@ if not DART_API_KEY:
     raise EnvironmentError("DARTFSS_API_KEY not found in .env")
 
 dart.set_api_key(DART_API_KEY)
+
+
+@functools.lru_cache(maxsize=1)
+def _get_corp_list():
+    """Fetch and cache the full DART corp list. Called once per process."""
+    return dart.get_corp_list()
+
 
 SAMPLE_COMPANIES = [
     "현대모비스", "LG이노텍", "삼성SDI", "한화솔루션", "OCI",
@@ -115,7 +123,7 @@ def screen_companies(
     sector: Korean sector name e.g. "제조업" (informational; DART search is by name)
     min/max_revenue: in billions KRW — filters on the most recent year available
     """
-    corp_list = dart.get_corp_list()
+    corp_list = _get_corp_list()
     results = []
 
     for name in SAMPLE_COMPANIES:
