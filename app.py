@@ -19,15 +19,6 @@ st.set_page_config(
 )
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def _run_pipeline_cached(min_revenue: float, max_revenue: float, top_n: int):
-    """Cache pipeline results for 1 hour. Avoids re-running DART API on every re-render."""
-    from pipeline import run_full_pipeline
-    return run_full_pipeline(
-        min_revenue_bn_krw=min_revenue,
-        max_revenue_bn_krw=max_revenue,
-        top_n=top_n,
-    )
 
 # ------------------------------------------------------------------
 # Sidebar — ICP Filter
@@ -78,13 +69,13 @@ if run_button:
 
     try:
         with st.spinner(
-            "Running pipeline... DART financial screening takes 5-15 min on first run "
-            "(extracts data for 20 Korean manufacturers). Subsequent runs with the same "
-            "filters are instant (cached for 1 hour)."
+            "Scanning 5 Korean manufacturers via DART (3-5 min). "
+            "Financial data extraction runs in the background — please wait."
         ):
-            companies, excel_path = _run_pipeline_cached(
-                min_revenue=float(min_revenue),
-                max_revenue=float(max_revenue),
+            from pipeline import run_full_pipeline
+            companies, excel_path = run_full_pipeline(
+                min_revenue_bn_krw=float(min_revenue),
+                max_revenue_bn_krw=float(max_revenue),
                 top_n=top_n,
             )
 

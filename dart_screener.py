@@ -1,5 +1,6 @@
 import os
 import functools
+import concurrent.futures
 import dart_fss as dart
 from pathlib import Path
 from dotenv import load_dotenv
@@ -22,18 +23,26 @@ def _get_corp_list():
     return dart.get_corp_list()
 
 
+# 5 companies for reliable Streamlit Cloud demo (extract_fs is slow per company)
 SAMPLE_COMPANIES = [
-    "현대모비스", "LG이노텍", "삼성SDI", "한화솔루션", "OCI",
-    "효성", "롯데케미칼", "SKC", "코오롱인더스트리", "GS칼텍스",
-    "포스코케미칼", "일진머티리얼즈", "삼성전기", "DB하이텍", "파크시스템스",
-    "비에이치", "원익IPS", "테크윙", "솔브레인", "동진쎄미켐"
+    "삼성전기", "솔브레인", "현대모비스", "LG이노텍", "DB하이텍",
 ]
+
+
+_FS_TIMEOUT = 45  # seconds per company — avoid hanging forever
 
 
 def _extract_financials(corp) -> list[dict]:
     """Pull annual financials for a corp object. Returns list of yearly dicts."""
+    def _fetch():
+        return corp.extract_fs(bgn_de='20220101', end_de='20241231', report_tp='annual')
+
     try:
-        fs = corp.extract_fs(bgn_de='20220101', end_de='20241231', report_tp='annual')
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
+            _future = _ex.submit(_fetch)
+            fs = _future.result(timeout=_FS_TIMEOUT)
+    except concurrent.futures.TimeoutError:
+        raise RuntimeError(f"extract_fs timed out after {_FS_TIMEOUT}s")
     except Exception as e:
         raise RuntimeError(f"extract_fs failed: {e}")
 
