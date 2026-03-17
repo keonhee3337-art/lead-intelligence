@@ -2,12 +2,13 @@
 Korean SME Lead Intelligence — Streamlit UI
 """
 
-import sys
 from pathlib import Path
-sys.stdout.reconfigure(encoding="utf-8")
-
 from dotenv import load_dotenv
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
+
+for _p in [Path(__file__).parent / '.env', Path(__file__).parent.parent / '.env', Path(__file__).parent.parent.parent / '.env']:
+    if _p.exists():
+        load_dotenv(dotenv_path=_p)
+        break
 
 import streamlit as st
 
