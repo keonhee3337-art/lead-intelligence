@@ -2,20 +2,33 @@
 Korean SME Lead Intelligence — Streamlit UI
 """
 
-import sys
+import concurrent.futures
 from pathlib import Path
-sys.stdout.reconfigure(encoding="utf-8")
-
 from dotenv import load_dotenv
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
+
+for _p in [Path(__file__).parent / '.env', Path(__file__).parent.parent / '.env', Path(__file__).parent.parent.parent / '.env']:
+    if _p.exists():
+        load_dotenv(dotenv_path=_p)
+        break
 
 import streamlit as st
+
+# Streamlit Cloud: load secrets into env before any pipeline imports
+import os
+for _key in ["PERPLEXITY_API_KEY", "ANTHROPIC_API_KEY", "DARTFSS_API_KEY"]:
+    if not os.environ.get(_key):
+        try:
+            os.environ[_key] = st.secrets[_key]
+        except (KeyError, FileNotFoundError):
+            pass
 
 st.set_page_config(
     page_title="Korean SME Lead Intelligence",
     page_icon="🔍",
     layout="wide",
 )
+
+
 
 # ------------------------------------------------------------------
 # Sidebar — ICP Filter
@@ -66,16 +79,25 @@ if run_button:
 
     try:
         with st.spinner(
-            "Scanning DART financials, running GEO audit, and generating outreach emails... "
-            "This takes 2-5 minutes. Grab a coffee."
+            "Scanning 5 Korean manufacturers via DART (3-5 min). "
+            "Financial data extraction runs in the background — please wait."
         ):
             from pipeline import run_full_pipeline
-
-            companies, excel_path = run_full_pipeline(
-                min_revenue_bn_krw=float(min_revenue),
-                max_revenue_bn_krw=float(max_revenue),
-                top_n=top_n,
-            )
+            PIPELINE_TIMEOUT = 300  # 5-minute hard cap
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    run_full_pipeline,
+                    min_revenue_bn_krw=float(min_revenue),
+                    max_revenue_bn_krw=float(max_revenue),
+                    top_n=top_n,
+                )
+                try:
+                    companies, excel_path = future.result(timeout=PIPELINE_TIMEOUT)
+                except concurrent.futures.TimeoutError:
+                    raise TimeoutError(
+                        f"Pipeline exceeded {PIPELINE_TIMEOUT}s. "
+                        "Try reducing Top N or check network/API connectivity."
+                    )
 
         if not companies:
             st.warning(
@@ -87,6 +109,8 @@ if run_button:
             st.session_state["excel_path"] = excel_path
             st.success(f"Pipeline complete — {len(companies)} companies processed.")
 
+    except TimeoutError as e:
+        st.error(str(e))
     except EnvironmentError as e:
         st.error(
             f"Environment error: {e}\n\n"

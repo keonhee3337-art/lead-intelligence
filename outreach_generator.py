@@ -20,7 +20,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 import anthropic
 
-load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / '.env')
+for _p in [Path(__file__).parent / '.env', Path(__file__).parent.parent / '.env', Path(__file__).parent.parent.parent / '.env']:
+    if _p.exists():
+        load_dotenv(dotenv_path=_p)
+        break
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
@@ -121,6 +124,7 @@ def _draft_email(company: dict, feedback: str = "") -> tuple[str, str]:
         max_tokens=1024,
         messages=[{"role": "user", "content": user_prompt}],
         system=system_prompt,
+        timeout=30.0,
     )
 
     raw = response.content[0].text.strip()
@@ -179,6 +183,7 @@ def _score_email(company: dict, subject: str, body: str) -> tuple[float, str]:
         model=HAIKU_MODEL,
         max_tokens=512,
         messages=[{"role": "user", "content": prompt}],
+        timeout=30.0,
     )
 
     raw = response.content[0].text.strip()
