@@ -2,6 +2,7 @@
 Korean SME Lead Intelligence — Streamlit UI
 """
 
+import concurrent.futures
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -73,11 +74,21 @@ if run_button:
             "Financial data extraction runs in the background — please wait."
         ):
             from pipeline import run_full_pipeline
-            companies, excel_path = run_full_pipeline(
-                min_revenue_bn_krw=float(min_revenue),
-                max_revenue_bn_krw=float(max_revenue),
-                top_n=top_n,
-            )
+            PIPELINE_TIMEOUT = 300  # 5-minute hard cap
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    run_full_pipeline,
+                    min_revenue_bn_krw=float(min_revenue),
+                    max_revenue_bn_krw=float(max_revenue),
+                    top_n=top_n,
+                )
+                try:
+                    companies, excel_path = future.result(timeout=PIPELINE_TIMEOUT)
+                except concurrent.futures.TimeoutError:
+                    raise TimeoutError(
+                        f"Pipeline exceeded {PIPELINE_TIMEOUT}s. "
+                        "Try reducing Top N or check network/API connectivity."
+                    )
 
         if not companies:
             st.warning(
@@ -89,6 +100,8 @@ if run_button:
             st.session_state["excel_path"] = excel_path
             st.success(f"Pipeline complete — {len(companies)} companies processed.")
 
+    except TimeoutError as e:
+        st.error(str(e))
     except EnvironmentError as e:
         st.error(
             f"Environment error: {e}\n\n"

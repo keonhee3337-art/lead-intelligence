@@ -124,6 +124,7 @@ def _draft_email(company: dict, feedback: str = "") -> tuple[str, str]:
         max_tokens=1024,
         messages=[{"role": "user", "content": user_prompt}],
         system=system_prompt,
+        timeout=30.0,
     )
 
     raw = response.content[0].text.strip()
@@ -182,6 +183,7 @@ def _score_email(company: dict, subject: str, body: str) -> tuple[float, str]:
         model=HAIKU_MODEL,
         max_tokens=512,
         messages=[{"role": "user", "content": prompt}],
+        timeout=30.0,
     )
 
     raw = response.content[0].text.strip()

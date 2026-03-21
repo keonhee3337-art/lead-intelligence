@@ -48,68 +48,78 @@ def _extract_financials(corp) -> list[dict]:
 
     records = []
 
-    # fs is a FinancialStatement object; iterate over available years
-    # fs['bs'], fs['is'], fs['cis'] — use income statement
-    try:
-        if hasattr(fs, 'show'):
-            is_df = fs['is']
-        else:
-            is_df = fs.get('is') or fs.get('cis')
-    except Exception:
-        is_df = None
-
-    if is_df is None or (hasattr(is_df, 'empty') and is_df.empty):
-        return records
-
-    # The DataFrame has account labels as index, years as columns
-    # Column names are typically tuples or strings like '2023' / '20231231'
-    try:
-        cols = list(is_df.columns)
-    except Exception:
-        return records
-
-    for col in cols:
+    # dart-fss returns a FinancialStatement with MultiIndex columns.
+    # Try 'is' (income statement) first — has 매출액 + 영업이익.
+    # Fall back to 'cis' (comprehensive income) if 'is' is None.
+    is_df = None
+    for key in ('is', 'cis'):
         try:
-            year_str = str(col).replace('(', '').replace(')', '').strip()
-            # Extract 4-digit year
-            year = None
-            for part in year_str.split():
-                if len(part) == 4 and part.isdigit():
-                    year = int(part)
-                    break
-            if year is None and len(year_str) >= 4 and year_str[:4].isdigit():
-                year = int(year_str[:4])
-            if year is None:
-                continue
+            candidate = fs[key]
+            if candidate is not None and not candidate.empty:
+                is_df = candidate
+                break
+        except Exception:
+            continue
 
-            def _get_value(labels):
-                for label in labels:
-                    try:
-                        row = is_df.loc[is_df.index.str.contains(label, na=False)]
-                        if not row.empty:
-                            val = row.iloc[0][col]
-                            if val is not None and str(val).strip() not in ('', '-', 'nan'):
+    if is_df is None:
+        return records
+
+    try:
+        # Find the label_ko column — second level of MultiIndex is the field name
+        stmt_title = next(c[0] for c in is_df.columns if c[1] == 'label_ko')
+        label_col = (stmt_title, 'label_ko')
+
+        # Find year columns — second level contains tuples with '연결재무제표' or '재무제표'
+        import re as _re
+        year_cols = [
+            c for c in is_df.columns
+            if isinstance(c[1], tuple) and any('재무제표' in str(x) for x in c[1])
+        ]
+    except Exception:
+        return records
+
+    for year_col in year_cols:
+        try:
+            # Parse year from the date range string e.g. '20230101-20231231'
+            date_str = str(year_col[0])
+            year_match = _re.search(r'(\d{4})\d{4}-(\d{4})\d{4}', date_str)
+            if not year_match:
+                continue
+            year = int(year_match.group(2))  # end year
+
+            def _get_value(target_labels):
+                for target in target_labels:
+                    mask = is_df[label_col].astype(str).str.strip() == target
+                    rows = is_df[mask]
+                    if not rows.empty:
+                        val = rows.iloc[0][year_col]
+                        if val is not None and str(val).strip() not in ('', '-', 'nan', 'None'):
+                            try:
                                 return float(str(val).replace(',', ''))
-                    except Exception:
-                        continue
+                            except ValueError:
+                                continue
                 return None
 
-            revenue = _get_value(['매출액', '수익(매출액)', '영업수익'])
-            op_profit = _get_value(['영업이익'])
+            revenue = _get_value(['매출액', '수익(매출액)', '영업수익', '매출'])
+            op_profit = _get_value(['영업이익', '영업이익(손실)'])
 
             if revenue is None:
                 continue
 
-            # Convert from KRW (units vary — dart-fss returns in 원, divide to get billions)
+            # dart-fss values are in KRW (원) — divide by 1e9 for billions
             revenue_bn = revenue / 1e9
             op_profit_bn = (op_profit / 1e9) if op_profit is not None else None
-            op_margin = (op_profit_bn / revenue_bn * 100) if (op_profit_bn is not None and revenue_bn > 0) else None
+            op_margin = (
+                round(op_profit_bn / revenue_bn * 100, 2)
+                if (op_profit_bn is not None and revenue_bn > 0)
+                else None
+            )
 
             records.append({
                 'year': year,
                 'revenue_bn_krw': round(revenue_bn, 2),
                 'operating_profit_bn_krw': round(op_profit_bn, 2) if op_profit_bn is not None else None,
-                'operating_margin_pct': round(op_margin, 2) if op_margin is not None else None,
+                'operating_margin_pct': op_margin,
             })
         except Exception:
             continue
