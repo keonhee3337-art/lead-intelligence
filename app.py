@@ -13,6 +13,15 @@ for _p in [Path(__file__).parent / '.env', Path(__file__).parent.parent / '.env'
 
 import streamlit as st
 
+# Streamlit Cloud: load secrets into env before any pipeline imports
+import os
+for _key in ["PERPLEXITY_API_KEY", "ANTHROPIC_API_KEY", "DARTFSS_API_KEY"]:
+    if not os.environ.get(_key):
+        try:
+            os.environ[_key] = st.secrets[_key]
+        except (KeyError, FileNotFoundError):
+            pass
+
 st.set_page_config(
     page_title="Korean SME Lead Intelligence",
     page_icon="🔍",

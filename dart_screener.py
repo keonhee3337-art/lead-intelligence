@@ -11,10 +11,9 @@ for _p in [Path(__file__).parent / '.env', Path(__file__).parent.parent / '.env'
         break
 
 DART_API_KEY = os.getenv("DARTFSS_API_KEY")
-if not DART_API_KEY:
-    raise EnvironmentError("DARTFSS_API_KEY not found in .env")
-
-dart.set_api_key(DART_API_KEY)
+if DART_API_KEY:
+    dart.set_api_key(DART_API_KEY)
+# Key will be validated at runtime in screen_companies() if missing
 
 
 @functools.lru_cache(maxsize=1)
@@ -142,6 +141,11 @@ def screen_companies(
     sector: Korean sector name e.g. "제조업" (informational; DART search is by name)
     min/max_revenue: in billions KRW — filters on the most recent year available
     """
+    # Ensure DART API key is set (handles Streamlit Cloud where secrets load after module import)
+    key = os.getenv("DARTFSS_API_KEY")
+    if not key:
+        raise EnvironmentError("DARTFSS_API_KEY not set. Add it to Streamlit Cloud secrets.")
+    dart.set_api_key(key)
     corp_list = _get_corp_list()
     results = []
 
